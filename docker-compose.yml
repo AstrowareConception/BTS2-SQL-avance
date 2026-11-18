@@ -1,0 +1,42 @@
+name: bts2-sql-avance
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --log-bin-trust-function-creators=1
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Copier .env.example vers .env}
+      MYSQL_DATABASE: centre_culturel
+      MYSQL_USER: apprenant
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Copier .env.example vers .env}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql_tp_data:/var/lib/mysql
+      - ./sql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./sql/02_donnees.sql:/docker-entrypoint-initdb.d/02_donnees.sql:ro
+      - ./tests:/tp-tests:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysql -h 127.0.0.1 -uroot -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  adminer:
+    image: adminer:5
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${ADMINER_PORT:-8082}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+
+volumes:
+  mysql_tp_data:

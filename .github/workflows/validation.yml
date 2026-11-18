@@ -1,0 +1,35 @@
+name: Vérifier le laboratoire SQL
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  donnees-de-depart:
+    name: Docker Compose et données de départ
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+      - name: Préparer les paramètres locaux
+        run: cp .env.example .env
+      - name: Vérifier Docker Compose
+        run: docker compose config --quiet
+      - name: Démarrer MySQL et Adminer
+        run: docker compose up -d --wait
+      - name: Contrôler les données initiales
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose exec -T db sh -c \
+            'MYSQL_PWD="$MYSQL_PASSWORD" mysql -N -s -u "$MYSQL_USER" "$MYSQL_DATABASE" < /tp-tests/00_donnees_depart.sql' \
+            | tee /tmp/tp-sql-validation.txt
+          grep -q '^OK$' /tmp/tp-sql-validation.txt
+      - name: Traces en cas de problème
+        if: failure()
+        run: docker compose logs --tail=150 db adminer
+      - name: Nettoyer les conteneurs
+        if: always()
+        run: docker compose down -v
